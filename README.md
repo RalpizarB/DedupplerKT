@@ -1,9 +1,10 @@
 # DedupplerKT
 
-Kotlin desktop application that finds duplicate files using Blake2b hashing.
+Kotlin Compose Desktop application that finds duplicate files using Blake2b hashing.
 
 ## Features
 
+- **Compose Desktop UI** - Modern, native desktop application built with Jetpack Compose
 - **Scan directories** for duplicate files
 - **Scan all disks** on the system
 - **Filter by file type**: Music, Video, Image, or Other
@@ -17,31 +18,44 @@ Kotlin desktop application that finds duplicate files using Blake2b hashing.
   - Disk location
   - File size in MB (numeric only for better sorting)
   - File type (music, video, image, other)
-- **Modern UI** - built with Swing and FlatLaf for a clean, modern look
 
 ## Requirements
 
 - Java 17 or higher
-- Maven 3.6 or higher (for building)
+- Gradle 8.4 or higher (wrapper included)
 
 ## Building
 
 ```bash
-mvn clean package
+./gradlew build
 ```
 
-This creates an executable JAR in `target/DedupplerKT-1.0.0.jar`
+This creates an executable JAR in `build/libs/DedupplerKT-1.0.0.jar`
 
 ## Running
 
 ```bash
-java -jar target/DedupplerKT-1.0.0.jar
+./gradlew run
 ```
 
-Or with Maven:
+Or run the packaged application:
 
 ```bash
-mvn exec:java
+java -jar build/libs/DedupplerKT-1.0.0.jar
+```
+
+## Creating Native Packages
+
+Create platform-specific packages:
+
+```bash
+# For your current platform
+./gradlew packageDistributionForCurrentOS
+
+# Specific platforms
+./gradlew packageDeb    # Linux .deb
+./gradlew packageMsi    # Windows .msi
+./gradlew packageDmg    # macOS .dmg
 ```
 
 ## Usage
@@ -58,7 +72,7 @@ mvn exec:java
 3. **Start scanning**:
    - Click "Start Scan" to begin
    - Progress is shown in real-time
-   - Results appear in the table as files are scanned
+   - Results appear in the list as files are scanned
 
 4. **Export results**:
    - Click "Export CSV Report" to save results
@@ -107,8 +121,8 @@ The scanner automatically skips these system directories:
 ## Technology Stack
 
 - **Language**: Kotlin 1.9.20
-- **Build Tool**: Maven
-- **UI**: Java Swing with FlatLaf
+- **Build Tool**: Gradle 8.4
+- **UI**: Jetpack Compose Desktop 1.5.10
 - **Hashing**: BouncyCastle (Blake2b-512)
 - **CSV Export**: Apache Commons CSV
 - **Concurrency**: Kotlin Coroutines

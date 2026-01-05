@@ -1,3 +1,9 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
 # Maven
 target/
 pom.xml.tag
@@ -41,5 +47,5 @@ Thumbs.db
 *.rar
 
 # Compose Desktop
-build/
-.gradle/
+local.properties
+
