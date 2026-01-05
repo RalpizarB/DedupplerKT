@@ -32,6 +32,8 @@ fun DedupplerApp() {
     var progressMessage by remember { mutableStateOf("") }
     var scannedFiles by remember { mutableStateOf<List<FileInfo>>(emptyList()) }
     var duplicateCount by remember { mutableStateOf(0) }
+    var streamingCsvEnabled by remember { mutableStateOf(true) }  // Enable streaming CSV by default
+    var csvOutputPath by remember { mutableStateOf("") }
     
     val scope = rememberCoroutineScope()
     
@@ -91,6 +93,52 @@ fun DedupplerApp() {
                         enabled = !isScanning
                     )
                     Text("Scan all disks")
+                }
+                
+                // Streaming CSV Option
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = streamingCsvEnabled,
+                        onCheckedChange = { streamingCsvEnabled = it },
+                        enabled = !isScanning
+                    )
+                    Text("Write CSV during scan (enables restart capability)")
+                }
+                
+                // CSV Output Path Selection (when streaming is enabled)
+                if (streamingCsvEnabled) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = csvOutputPath,
+                            onValueChange = { csvOutputPath = it },
+                            label = { Text("CSV output path (optional)") },
+                            modifier = Modifier.weight(1f),
+                            enabled = !isScanning,
+                            placeholder = { Text("duplicates_report.csv") }
+                        )
+                        
+                        Button(
+                            onClick = {
+                                val fileChooser = JFileChooser()
+                                fileChooser.dialogTitle = "Select CSV Output Path"
+                                fileChooser.selectedFile = File("duplicates_report.csv")
+                                val result = fileChooser.showSaveDialog(null)
+                                if (result == JFileChooser.APPROVE_OPTION) {
+                                    csvOutputPath = fileChooser.selectedFile.absolutePath
+                                }
+                            },
+                            enabled = !isScanning
+                        ) {
+                            Text("Browse")
+                        }
+                    }
                 }
                 
                 // File Type Filters
@@ -175,33 +223,60 @@ fun DedupplerApp() {
                                 progressMessage = "Starting scan..."
                                 
                                 withContext(Dispatchers.IO) {
-                                    val scanner = FileScanner(
-                                        onProgress = { msg -> progressMessage = msg },
-                                        onFileFound = { }
-                                    )
+                                    // Prepare streaming CSV writer if enabled
+                                    val csvWriter = if (streamingCsvEnabled) {
+                                        val outputPath = csvOutputPath.ifBlank { "duplicates_report.csv" }
+                                        try {
+                                            CsvReportGenerator.createStreamingWriter(outputPath)
+                                        } catch (e: Exception) {
+                                            progressMessage = "Error creating CSV: ${e.message}"
+                                            null
+                                        }
+                                    } else null
                                     
-                                    val options = FileScanner.ScanOptions(
-                                        scanAllDisks = scanAllDisks,
-                                        mediaOnly = mediaOnly,
-                                        includeMusic = includeMusic,
-                                        includeVideo = includeVideo,
-                                        includeImage = includeImage,
-                                        includeOther = includeOther
-                                    )
-                                    
-                                    val results = if (scanAllDisks) {
-                                        scanner.scanAllDisks(options)
-                                    } else {
-                                        scanner.scanDirectory(selectedDirectory, options)
+                                    try {
+                                        val scanner = FileScanner(
+                                            onProgress = { msg -> progressMessage = msg },
+                                            onFileFound = { _ ->
+                                                // File metadata found (Phase 1)
+                                            },
+                                            onFileHashed = { hashedFileInfo ->
+                                                // File has been hashed (Phase 2) - write to CSV immediately
+                                                csvWriter?.writeFile(hashedFileInfo)
+                                            }
+                                        )
+                                        
+                                        val options = FileScanner.ScanOptions(
+                                            scanAllDisks = scanAllDisks,
+                                            mediaOnly = mediaOnly,
+                                            includeMusic = includeMusic,
+                                            includeVideo = includeVideo,
+                                            includeImage = includeImage,
+                                            includeOther = includeOther
+                                        )
+                                        
+                                        val results = if (scanAllDisks) {
+                                            scanner.scanAllDisks(options)
+                                        } else {
+                                            scanner.scanDirectory(selectedDirectory, options)
+                                        }
+                                        
+                                        scannedFiles = results
+                                        
+                                        // Count duplicates (only from hashed files)
+                                        val hashedFiles = results.filter { it.isHashed && it.hash.isNotBlank() }
+                                        val hashGroups = hashedFiles.groupBy { it.hash }
+                                        duplicateCount = hashGroups.values.count { it.size > 1 }
+                                        
+                                        val csvMessage = if (csvWriter != null) {
+                                            " CSV written to: ${csvOutputPath.ifBlank { "duplicates_report.csv" }}"
+                                        } else ""
+                                        
+                                        progressMessage = "Scan complete! Found ${results.size} files, ${duplicateCount} duplicate groups.$csvMessage"
+                                    } finally {
+                                        // Close CSV writer
+                                        csvWriter?.close()
                                     }
-                                    
-                                    scannedFiles = results
-                                    
-                                    // Count duplicates
-                                    val hashGroups = results.groupBy { it.hash }
-                                    duplicateCount = hashGroups.values.count { it.size > 1 }
-                                    
-                                    progressMessage = "Scan complete! Found ${results.size} files, ${duplicateCount} duplicate groups"
                                 }
                                 
                                 isScanning = false
@@ -268,8 +343,13 @@ fun DedupplerApp() {
                                     text = file.fullPath,
                                     style = MaterialTheme.typography.body1
                                 )
+                                val hashDisplay = if (file.isHashed && file.hash.isNotBlank()) {
+                                    "Hash: ${file.hash.take(16)}..."
+                                } else {
+                                    "Hash: (not computed)"
+                                }
                                 Text(
-                                    text = "Type: ${file.type.name} | Size: ${"%.2f".format(file.size / (1024.0 * 1024.0))} MB | Hash: ${file.hash.take(16)}...",
+                                    text = "Type: ${file.type.name} | Size: ${"%.2f".format(file.size / (1024.0 * 1024.0))} MB | $hashDisplay",
                                     style = MaterialTheme.typography.caption,
                                     color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
                                 )

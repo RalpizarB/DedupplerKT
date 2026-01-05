@@ -5,12 +5,15 @@ Kotlin Compose Desktop application that finds duplicate files using Blake2b hash
 ## Features
 
 - **Compose Desktop UI** - Modern, native desktop application built with Jetpack Compose
+- **Two-phase scanning** - First collects file metadata, then hashes from smallest to largest
+- **Streaming CSV export** - Write results during scan for restart capability
 - **Scan directories** for duplicate files
 - **Scan all disks** on the system
 - **Filter by file type**: Music, Video, Image, or Other
 - **Media files only mode** (default) - scans only media files
 - **Smart directory skipping** - automatically skips system directories (Windows, AppData, Program Files, etc.)
 - **Blake2b hashing** - uses secure Blake2b-512 algorithm for file comparison
+- **Efficient hashing** - Files are hashed from smallest to largest for better performance
 - **CSV export** - generates detailed reports with:
   - Full file path
   - File extension
@@ -60,21 +63,53 @@ Create platform-specific packages:
 
 ## Usage
 
+### Scanning Process
+
+The application uses a **two-phase scanning approach**:
+
+**Phase 1: Metadata Collection**
+- Recursively scans directories
+- Collects file information (path, size, type, disk)
+- No hashing yet - very fast
+- Files are displayed as they're found
+
+**Phase 2: Hashing**
+- Files are sorted by size (smallest first)
+- Blake2b-512 hash computed for each file
+- Progress shown with percentage complete
+- Smaller files hash faster, providing quick feedback
+
+### Streaming CSV Export
+
+Enable "Write CSV during scan" to:
+- Write results incrementally as files are hashed
+- Enable restart capability if process is interrupted
+- CSV is flushed after each file for data safety
+- Specify output path before starting scan
+
+### Step-by-Step Guide
+
 1. **Choose scanning mode**:
    - Enter a directory path or use "Browse" to select a folder
    - Or check "Scan all disks" to scan all available drives
 
-2. **Select file types**:
+2. **Configure streaming CSV (recommended)**:
+   - Check "Write CSV during scan" for restart capability
+   - Browse to select output CSV path
+   - CSV will be written as files are processed
+
+3. **Select file types**:
    - "Media files only" (default): Scans only music, video, and image files
    - Uncheck to include other file types
    - Select specific media types to scan (Music, Video, Image)
 
-3. **Start scanning**:
+4. **Start scanning**:
    - Click "Start Scan" to begin
-   - Progress is shown in real-time
-   - Results appear in the list as files are scanned
+   - Phase 1: File metadata collection (fast)
+   - Phase 2: Hashing from smallest to largest (shows progress %)
+   - Results appear in the list as files are processed
 
-4. **Export results**:
+5. **Export results** (if not using streaming CSV):
    - Click "Export CSV Report" to save results
    - CSV includes all file information with size in MB for easy sorting
 
