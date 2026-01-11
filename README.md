@@ -6,7 +6,8 @@ Kotlin Compose Desktop application that finds duplicate files using Blake2b hash
 
 - **Compose Desktop UI** - Modern, native desktop application built with Jetpack Compose
 - **Two-phase scanning** - First collects file metadata, then hashes from smallest to largest
-- **Streaming CSV export** - Write results during scan for restart capability
+- **Streaming CSV export** - Paths written immediately, then filled with complete data
+- **Symlink and path validation** - Skips symbolic links and validates file paths for safety
 - **Scan directories** for duplicate files
 - **Scan all disks** on the system
 - **Filter by file type**: Music, Video, Image, or Other
@@ -81,11 +82,31 @@ The application uses a **two-phase scanning approach**:
 
 ### Streaming CSV Export
 
-Enable "Write CSV during scan" to:
-- Write results incrementally as files are hashed
-- Enable restart capability if process is interrupted
-- CSV is flushed after each file for data safety
-- Specify output path before starting scan
+Enable "Write CSV during scan" for a three-stage process:
+
+**Stage 1: Paths Written Immediately**
+- CSV header written first
+- Each file path written to CSV as soon as it's discovered
+- Other fields (hash, size, type) left empty initially
+- Provides immediate record of files being scanned
+
+**Stage 2: Path Validation**
+- Files validated for safety:
+  - Not symbolic links
+  - Real paths only (canonical path validation)
+  - Not in system folders (unless explicitly scanning them)
+- Invalid files skipped with warning
+
+**Stage 3: Data Fill-In**
+- After all paths collected, CSV rewritten with complete data
+- Files hashed from smallest to largest
+- Each file's data filled in progressively
+- Final CSV contains complete information
+
+This approach ensures:
+- Immediate checkpoint of discovered files
+- Restart capability if process interrupted
+- Safe scanning (symlinks and invalid paths excluded)
 
 ### Step-by-Step Guide
 

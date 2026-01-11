@@ -95,6 +95,12 @@ class FileScanner(
                         }
                         collectFileMetadata(entry, options, allFiles)
                     } else if (entry.isFile) {
+                        // Validate file: not symlink, real path, in user folder
+                        if (!isValidFile(entry)) {
+                            onProgress("Skipping invalid file: ${entry.absolutePath}")
+                            continue
+                        }
+                        
                         if (shouldProcessFile(entry, options)) {
                             val fileInfo = createFileInfoWithoutHash(entry)
                             allFiles.add(fileInfo)
@@ -108,6 +114,61 @@ class FileScanner(
             }
         } catch (e: Exception) {
             // Skip directories that can't be accessed
+        }
+    }
+    
+    /**
+     * Validate file is safe to process:
+     * - Not a symlink
+     * - Has a real path
+     * - Is in user folder (not system folders)
+     * BUG FIX: This prevents scanning system symlinks and invalid paths
+     */
+    private fun isValidFile(file: File): Boolean {
+        try {
+            // Check if file is a symbolic link
+            if (Files.isSymbolicLink(file.toPath())) {
+                return false
+            }
+            
+            // Check if we can get the canonical path (real path)
+            val canonicalPath = try {
+                file.canonicalPath
+            } catch (e: Exception) {
+                return false
+            }
+            
+            // Ensure file actually exists at the canonical path
+            if (!File(canonicalPath).exists()) {
+                return false
+            }
+            
+            // Check if file is in user folder (not system folders)
+            val userHome = System.getProperty("user.home") ?: return false
+            val normalizedCanonical = canonicalPath.replace('\\', '/').lowercase()
+            val normalizedUserHome = userHome.replace('\\', '/').lowercase()
+            
+            // File must be under user home OR on a different drive/mount (for Windows/Linux)
+            val isInUserHome = normalizedCanonical.startsWith(normalizedUserHome)
+            
+            // On Windows, allow files on any drive that's not C:\Windows, C:\Program Files, etc.
+            // On Linux/Unix, allow files not in /bin, /sbin, /usr/bin, /usr/sbin, /boot, /sys, /proc
+            if (!isInUserHome) {
+                // Check if it's in system folders
+                val systemPaths = listOf(
+                    "/windows/", "/program files/", "/program files (x86)/",
+                    "/programdata/", "/boot/", "/sys/", "/proc/", "/dev/",
+                    "/bin/", "/sbin/", "/usr/bin/", "/usr/sbin/", "/lib/", "/lib64/"
+                )
+                
+                if (systemPaths.any { normalizedCanonical.contains(it) }) {
+                    return false
+                }
+            }
+            
+            return true
+        } catch (e: Exception) {
+            return false
         }
     }
     

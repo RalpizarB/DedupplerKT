@@ -237,12 +237,13 @@ fun DedupplerApp() {
                                     try {
                                         val scanner = FileScanner(
                                             onProgress = { msg -> progressMessage = msg },
-                                            onFileFound = { _ ->
-                                                // File metadata found (Phase 1)
+                                            onFileFound = { fileInfo ->
+                                                // File found (Phase 1) - write path only to CSV immediately
+                                                csvWriter?.writePathOnly(fileInfo.fullPath)
                                             },
                                             onFileHashed = { hashedFileInfo ->
-                                                // File has been hashed (Phase 2) - write to CSV immediately
-                                                csvWriter?.writeFile(hashedFileInfo)
+                                                // File has been hashed (Phase 2) - write complete data
+                                                csvWriter?.updateFileData(hashedFileInfo)
                                             }
                                         )
                                         
@@ -260,6 +261,9 @@ fun DedupplerApp() {
                                         } else {
                                             scanner.scanDirectory(selectedDirectory, options)
                                         }
+                                        
+                                        // Complete paths phase before hashing starts
+                                        csvWriter?.completePathsPhase()
                                         
                                         scannedFiles = results
                                         
